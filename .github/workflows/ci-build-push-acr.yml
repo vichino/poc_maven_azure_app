@@ -1,0 +1,52 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Requisitos antes de ejecutar:
+# - Configura OIDC en Azure AD para este repo (App Registration + Federated Credentials)
+# - Crea los siguientes secrets en GitHub (repo > Settings > Secrets and variables > Actions):
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# - Crea variables de repo (Settings > Secrets and variables > Actions > Variables):
+#   ACR_NAME (p.ej. miacr), ACR_LOGIN_SERVER (p.ej. miacr.azurecr.io), ACR_REPOSITORY (p.ej. poc-maven-azure-app)
+
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  ACR_REPOSITORY: ${{ vars.ACR_REPOSITORY }}
+  IMAGE_TAG_SHA: ${{ github.sha }}
+  IMAGE_TAG_LATEST: latest
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # requerido para OIDC
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
+      - name: Build and push image (ACR Tasks)
+        run: |
+          az acr build \
+            -r "$ACR_NAME" \
+            -t "$ACR_REPOSITORY:$IMAGE_TAG_SHA" \
+            -t "$ACR_REPOSITORY:$IMAGE_TAG_LATEST" \
+            .
+
+      - name: Summary
+        run: |
+          echo "Pushed: $ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "Pushed: $ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_LATEST" >> $GITHUB_STEP_SUMMARY
+
