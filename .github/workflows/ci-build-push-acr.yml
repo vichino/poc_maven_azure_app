@@ -41,14 +41,39 @@ jobs:
       - name: Normalize ACR name and verify
         shell: bash
         run: |
-          # ACR_NAME debe ser solo el nombre (sin .azurecr.io)
-          if [[ -z "$ACR_NAME" || "$ACR_NAME" == *.* ]]; then
-            ACR_NAME_NORM="${ACR_LOGIN_SERVER%%.*}"
+          echo "Inputs -> ACR_NAME='$ACR_NAME' ACR_LOGIN_SERVER='$ACR_LOGIN_SERVER'" | sed 's/\r//'
+
+          # Normaliza el nombre del ACR (sin protocolo ni dominio)
+          to_name_only() {
+            local s="$1"
+            # a minúsculas, sin protocolo, sin ruta, sin dominio
+            s="${s,,}"
+            s="${s#http://}"
+            s="${s#https://}"
+            s="${s%%/*}"
+            s="${s%%.*}"
+            echo "$s"
+          }
+
+          ACR_NAME_TRIM=$(to_name_only "$ACR_NAME")
+          ACR_LOGIN_FROM_SERVER=$(to_name_only "$ACR_LOGIN_SERVER")
+
+          if [[ -n "$ACR_NAME_TRIM" && "$ACR_NAME_TRIM" =~ ^[a-z0-9]+$ ]]; then
+            ACR_NAME_NORM="$ACR_NAME_TRIM"
           else
-            ACR_NAME_NORM="$ACR_NAME"
+            ACR_NAME_NORM="$ACR_LOGIN_FROM_SERVER"
           fi
+
+          # Validación básica
+          LEN=${#ACR_NAME_NORM}
+          if [[ $LEN -lt 5 || $LEN -gt 50 || ! "$ACR_NAME_NORM" =~ ^[a-z0-9]+$ ]]; then
+            echo "ACR_NAME_NORM calculado inválido: '$ACR_NAME_NORM'" >&2
+            echo "Asegúrate de definir ACR_NAME (solo nombre) o ACR_LOGIN_SERVER (p.ej. miacr.azurecr.io)" >&2
+            exit 1
+          fi
+
           echo "ACR_NAME_NORM=$ACR_NAME_NORM" >> "$GITHUB_ENV"
-          echo "Using registry: $ACR_NAME_NORM (from ACR_NAME='$ACR_NAME', ACR_LOGIN_SERVER='$ACR_LOGIN_SERVER')" >> $GITHUB_STEP_SUMMARY
+          echo "Using registry: $ACR_NAME_NORM" >> $GITHUB_STEP_SUMMARY
           az account show -o table
           az acr show -n "$ACR_NAME_NORM" -o table
 
