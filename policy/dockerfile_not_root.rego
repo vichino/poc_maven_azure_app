@@ -1,11 +1,11 @@
-package dockerfile.not_root
+package dockerfile_not_root
 
 deny[msg] {
   some i
   instr := input[i]
-  cmd := lower( pick([instr.Cmd, instr.Instruction], "") )
+  cmd := lower(pick([instr.Cmd, instr.Instruction], ""))
   cmd == "user"
-  val := trim(lower( pick([instr.Value, instr.Arg, instr.Args], "") ))
+  val := lower(pick([instr.Value, instr.Arg, instr.Args], ""))
   re_match("^(root|0)(:.*)?$", val)
   msg := sprintf("El Dockerfile usa USER '%s' (no debe ser root/uid 0).", [val])
 }
