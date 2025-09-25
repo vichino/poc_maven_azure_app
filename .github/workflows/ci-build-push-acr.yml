@@ -35,12 +35,28 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # Si el SP no tiene Reader a nivel de suscripción, descomenta:
+          # allow-no-subscriptions: true
+
+      - name: Normalize ACR name and verify
+        shell: bash
+        run: |
+          # ACR_NAME debe ser solo el nombre (sin .azurecr.io)
+          if [[ -z "$ACR_NAME" || "$ACR_NAME" == *.* ]]; then
+            ACR_NAME_NORM="${ACR_LOGIN_SERVER%%.*}"
+          else
+            ACR_NAME_NORM="$ACR_NAME"
+          fi
+          echo "ACR_NAME_NORM=$ACR_NAME_NORM" >> "$GITHUB_ENV"
+          echo "Using registry: $ACR_NAME_NORM (from ACR_NAME='$ACR_NAME', ACR_LOGIN_SERVER='$ACR_LOGIN_SERVER')" >> $GITHUB_STEP_SUMMARY
+          az account show -o table
+          az acr show -n "$ACR_NAME_NORM" -o table
 
       # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
       - name: Build and push image (ACR Tasks)
         run: |
           az acr build \
-            -r "$ACR_NAME" \
+            -r "$ACR_NAME_NORM" \
             -t "$ACR_REPOSITORY:$IMAGE_TAG_SHA" \
             -t "$ACR_REPOSITORY:$IMAGE_TAG_LATEST" \
             .
@@ -49,4 +65,3 @@ jobs:
         run: |
           echo "Pushed: $ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" >> $GITHUB_STEP_SUMMARY
           echo "Pushed: $ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_LATEST" >> $GITHUB_STEP_SUMMARY
-
