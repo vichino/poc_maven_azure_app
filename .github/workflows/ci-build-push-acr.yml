@@ -98,22 +98,24 @@ jobs:
           echo "Using registry: $ACR_NAME_NORM" >> $GITHUB_STEP_SUMMARY
           az acr show -n "$ACR_NAME_NORM" -o table
 
-
-
       - name: Debug Azure identity
         run: |
           az account show --query user
 
-      # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
-      ##test
-      - name: Build and push image (ACR Tasks)
+      # CONSTRUCCIÓN LOCAL EN UBUNTU (Reemplaza ACR Tasks)
+      - name: Login to ACR
         run: |
-          az acr build \
-            --subscription "$SUBSCRIPTION_ID" \
-            -r "$ACR_NAME_NORM" \
-            -t "$ACR_REPOSITORY:$IMAGE_TAG_SHA" \
-            -t "$ACR_REPOSITORY:$IMAGE_TAG_LATEST" \
-            .
+          az acr login --name "$ACR_NAME_NORM"
+
+      - name: Build Docker image locally
+        run: |
+          docker build -t "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" .
+          docker tag "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_LATEST"
+
+      - name: Push Docker image to ACR
+        run: |
+          docker push "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA"
+          docker push "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_LATEST"
 
       - name: Summary
         run: |
