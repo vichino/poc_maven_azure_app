@@ -98,6 +98,12 @@ jobs:
           echo "Using registry: $ACR_NAME_NORM" >> $GITHUB_STEP_SUMMARY
           az acr show -n "$ACR_NAME_NORM" -o table
 
+
+
+      - name: Debug Azure identity
+        run: |
+          az account show --query user
+
       # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
       - name: Build and push image (ACR Tasks)
         run: |
