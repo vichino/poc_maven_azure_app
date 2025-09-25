@@ -105,6 +105,7 @@ jobs:
           az account show --query user
 
       # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
+      ##test
       - name: Build and push image (ACR Tasks)
         run: |
           az acr build \
