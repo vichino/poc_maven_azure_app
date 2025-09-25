@@ -28,12 +28,13 @@ jobs:
         run: mvn -B clean verify -DskipTests=false
 
       - name: OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
+        uses: jeremylong/DependencyCheck@release
         with:
-          project: poc-maven-azure-app
-          path: .
-          format: ALL
-          out: reports
+          version: '8.4.0'
+          project: 'poc-maven-azure-app'
+          path: '.'
+          format: 'ALL'
+          out: 'reports'
         continue-on-error: true
 
       - name: Upload OWASP reports
@@ -44,7 +45,16 @@ jobs:
           path: reports
           retention-days: 30
 
-      - name: Trivy filesystem scan
+      - name: Trivy table output (visible)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: HIGH,CRITICAL
+        continue-on-error: true
+
+      - name: Trivy SARIF output (for GitHub Security)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: fs
@@ -60,10 +70,23 @@ jobs:
           sarif_file: trivy-results.sarif
         continue-on-error: true
 
-      - name: Security Summary
+      - name: Security Summary with Details
         if: always()
         run: |
-          echo "## Security Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "- Build status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- OWASP: Dependency vulnerabilities report available in artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Trivy: Security scan uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Trivy Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f "trivy-results.sarif" ]; then
+            echo "- Trivy scan completed - check Security tab for details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- Trivy scan failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "### OWASP Results" >> $GITHUB_STEP_SUMMARY
+          if [ -d "reports" ] && [ "$(ls -A reports 2>/dev/null)" ]; then
+            echo "- OWASP reports generated - check artifacts for download" >> $GITHUB_STEP_SUMMARY
+            echo "- Report files:" >> $GITHUB_STEP_SUMMARY
+            ls -la reports/ | grep -E '\.(html|xml|json)$' || echo "  No report files found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- OWASP scan failed or no reports generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note**: All security checks are informational and do not block PR merges" >> $GITHUB_STEP_SUMMARY
