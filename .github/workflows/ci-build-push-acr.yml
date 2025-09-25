@@ -18,6 +18,7 @@ env:
   ACR_REPOSITORY: ${{ secrets.ACR_REPOSITORY }}
   IMAGE_TAG_SHA: ${{ github.sha }}
   IMAGE_TAG_LATEST: latest
+  SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
   build-and-push:
@@ -41,6 +42,7 @@ jobs:
       - name: Normalize ACR name and verify
         shell: bash
         run: |
+          set -euo pipefail
           echo "Inputs -> ACR_NAME='$ACR_NAME' ACR_LOGIN_SERVER='$ACR_LOGIN_SERVER'" | sed 's/\r//'
 
           # Normaliza el nombre del ACR (sin protocolo ni dominio)
@@ -72,15 +74,35 @@ jobs:
             exit 1
           fi
 
+          # Fija la suscripción explícitamente y lista ACRs visibles
+          az account set --subscription "$SUBSCRIPTION_ID"
+          echo "Suscripción activa:" >> $GITHUB_STEP_SUMMARY
+          az account show -o table >> $GITHUB_STEP_SUMMARY
+          echo "ACRs visibles en la suscripción:" >> $GITHUB_STEP_SUMMARY
+          az acr list -o table >> $GITHUB_STEP_SUMMARY || true
+
+          # Si el ACR calculado no existe pero hay uno único en la suscripción, úsalo
+          if ! az acr show -n "$ACR_NAME_NORM" -o none 2>/dev/null; then
+            ONLY_ONE=$(az acr list --query "length(@) == '1'" -o tsv || echo "false")
+            if [[ "$ONLY_ONE" == "true" ]]; then
+              ACR_NAME_NORM=$(az acr list --query "[0].name" -o tsv)
+              echo "ACR no encontrado, usando el único ACR visible: $ACR_NAME_NORM" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "El ACR '$ACR_NAME_NORM' no existe en la suscripción seleccionada." >&2
+              echo "Revisa los secrets ACR_NAME/ACR_LOGIN_SERVER o SUBSCRIPTION_ID." >&2
+              exit 1
+            fi
+          fi
+
           echo "ACR_NAME_NORM=$ACR_NAME_NORM" >> "$GITHUB_ENV"
           echo "Using registry: $ACR_NAME_NORM" >> $GITHUB_STEP_SUMMARY
-          az account show -o table
           az acr show -n "$ACR_NAME_NORM" -o table
 
       # Construcción en servidor con ACR Tasks (no requiere Docker en el runner)
       - name: Build and push image (ACR Tasks)
         run: |
           az acr build \
+            --subscription "$SUBSCRIPTION_ID" \
             -r "$ACR_NAME_NORM" \
             -t "$ACR_REPOSITORY:$IMAGE_TAG_SHA" \
             -t "$ACR_REPOSITORY:$IMAGE_TAG_LATEST" \
