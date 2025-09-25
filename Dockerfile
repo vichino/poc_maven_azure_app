@@ -9,8 +9,18 @@ RUN mvn -q -DskipTests package
 # Runtime stage
 FROM eclipse-temurin:11-jre
 WORKDIR /opt/app
-ENV JAVA_OPTS=""
+
+## ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError" depende de la version
+ENV JAVA_OPTS="-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+# ENV JAVA_OPTS=""
+
+# Crear usuario y grupo no root
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 COPY --from=build /app/target/poc-maven-azure-app-0.0.1-SNAPSHOT.jar /opt/app/app.jar
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s CMD wget -qO- http://127.0.0.1:8080/actuator/health || exit 1
+
+# Cambiar al usuario no root
+USER appuser
+
 ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /opt/app/app.jar"]
