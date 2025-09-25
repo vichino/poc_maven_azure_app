@@ -1,0 +1,69 @@
+﻿name: PR Quality & Security
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Prime Maven cache
+        run: mvn -B -ntp dependency:go-offline
+
+      - name: Lint, unit tests, packaging
+        run: mvn -B -ntp verify
+
+      - name: Checkstyle
+        run: mvn -B checkstyle:check -Dcheckstyle.config.location=checkstyle.xml
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@v3.1.2
+        with:
+          project: poc-maven-azure-app
+          path: .
+          format: ALL
+          out: reports
+
+      - name: Upload OWASP reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check
+          path: reports
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: CAF/WAF compliance summary
+        if: always()
+        run: |
+          echo "## CAF/WAF Validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Build status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- OWASP report: artifact *dependency-check*" >> $GITHUB_STEP_SUMMARY
+          echo "- Trivy report: uploaded as SARIF" >> $GITHUB_STEP_SUMMARY
