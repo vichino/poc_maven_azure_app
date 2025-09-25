@@ -13,85 +13,64 @@ permissions:
 jobs:
   quality-gates:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
-          java-version: 17
+          java-version: 11
           distribution: temurin
           cache: maven
 
-      - name: Prime Maven cache
-        run: mvn -B -ntp dependency:go-offline
+      - name: Build and test
+        run: mvn -B clean verify -DskipTests=false
 
-      - name: Lint + test + package
-        run: mvn -B -ntp verify
-        # Si quieres que esto tampoco tumbe el job al fallar, descomenta:
-        # continue-on-error: true
-
-      # ---------- Checkstyle ----------
       - name: Checkstyle
         run: mvn -B checkstyle:check -Dcheckstyle.config.location=checkstyle.xml
         continue-on-error: true
 
-      # ---------- OWASP Dependency-Check ----------
-      # Nombre correcto de la acción y versión estable
-      - name: OWASP Dependency-Check
-        uses: dependency-check/Dependency-Check_Action@v4.0.3
-        continue-on-error: true
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@v3.1.2
         with:
           project: poc-maven-azure-app
           path: .
           format: ALL
           out: reports
-          # Evita que falle el job por vulnerabilidades
-          # (la acción v4 respeta 'fail_on_cvss', ponle 11 para "nunca falla")
-          fail_on_cvss: 11
+        continue-on-error: true
 
-      - name: Upload dependency-check reports
-        if: always()
+      - name: Upload OWASP reports
         uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check
-          path: reports
-
-      - name: Publish OWASP SARIF to code scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: reports/dependency-check-report.sarif
+          name: dependency-check-reports
+          path: reports
+          retention-days: 30
 
-      # ---------- Trivy (FS scan) ----------
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.24.0
-        continue-on-error: true
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-results.sarif
-          # no rompas el job por findings
-          exit-code: '0'
-          # reduce falsos positivos por CVEs sin fix
-          ignore-unfixed: true
-          # amplía si quieres: vuln,secret,misconfig,license
-          security-checks: vuln,secret
+        continue-on-error: true
 
-      - name: Upload Trivy SARIF
-        if: always()
+      - name: Upload Trivy SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: trivy-results.sarif
+        continue-on-error: true
 
-      - name: Summary
+      - name: Security & Quality Summary
         if: always()
         run: |
-          echo "## PR Quality & Security" >> $GITHUB_STEP_SUMMARY
+          echo "## Security & Quality Check Results" >> $GITHUB_STEP_SUMMARY
           echo "- Build status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Checkstyle: ejecutado (no bloquea)" >> $GITHUB_STEP_SUMMARY
-          echo "- OWASP Dependency-Check: artifact 'dependency-check' y SARIF subido" >> $GITHUB_STEP_SUMMARY
-          echo "- Trivy: SARIF subido" >> $GITHUB_STEP_SUMMARY
+          echo "- Checkstyle: Style checks completed" >> $GITHUB_STEP_SUMMARY
+          echo "- OWASP: Dependency vulnerabilities report available in artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Trivy: Security scan uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note**: All security checks are informational and do not block PR merges" >> $GITHUB_STEP_SUMMARY
