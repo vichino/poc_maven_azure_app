@@ -27,14 +27,13 @@ jobs:
       - name: Build and test
         run: mvn -B clean verify -DskipTests=false
 
-      - name: OWASP Dependency Check
-        uses: jeremylong/DependencyCheck@release
-        with:
-          version: '8.4.0'
-          project: 'poc-maven-azure-app'
-          path: '.'
-          format: 'ALL'
-          out: 'reports'
+      - name: OWASP Dependency Check with Maven
+        run: |
+          mvn org.owasp:dependency-check-maven:10.0.4:check \
+            -DfailBuildOnCVSS=0 \
+            -DsuppressFailureOnExit=true \
+            -Dformat=ALL \
+            -DprettyPrint=true
         continue-on-error: true
 
       - name: Upload OWASP reports
@@ -42,7 +41,7 @@ jobs:
         if: always()
         with:
           name: dependency-check-reports
-          path: reports
+          path: target/dependency-check-report.*
           retention-days: 30
 
       - name: Trivy table output (visible)
@@ -81,10 +80,10 @@ jobs:
             echo "- Trivy scan failed" >> $GITHUB_STEP_SUMMARY
           fi
           echo "### OWASP Results" >> $GITHUB_STEP_SUMMARY
-          if [ -d "reports" ] && [ "$(ls -A reports 2>/dev/null)" ]; then
-            echo "- OWASP reports generated - check artifacts for download" >> $GITHUB_STEP_SUMMARY
-            echo "- Report files:" >> $GITHUB_STEP_SUMMARY
-            ls -la reports/ | grep -E '\.(html|xml|json)$' || echo "  No report files found" >> $GITHUB_STEP_SUMMARY
+          if [ -f "target/dependency-check-report.html" ]; then
+            echo "- OWASP Maven plugin scan completed - check artifacts for download" >> $GITHUB_STEP_SUMMARY
+            echo "- Report files generated:" >> $GITHUB_STEP_SUMMARY
+            ls -la target/dependency-check-report.* 2>/dev/null | while read line; do echo "  - ${line##*/}" >> $GITHUB_STEP_SUMMARY; done || true
           else
             echo "- OWASP scan failed or no reports generated" >> $GITHUB_STEP_SUMMARY
           fi
