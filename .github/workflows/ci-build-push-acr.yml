@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
+#test
 # Requisitos antes de ejecutar:
 # - Configura OIDC en Azure AD para este repo (App Registration + Federated Credentials)
 # - Crea los siguientes secrets en GitHub (repo > Settings > Secrets and variables > Actions):
