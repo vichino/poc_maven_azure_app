@@ -30,6 +30,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+    #### --- OPA/Conftest: exige USER no root en Dockerfile ---
+      - name: Install Conftest
+        run: |
+          wget -q https://github.com/open-policy-agent/conftest/releases/download/v0.49.0/conftest_0.49.0_Linux_x86_64.tar.gz
+          tar xzf conftest_0.49.0_Linux_x86_64.tar.gz
+          sudo mv conftest /usr/local/bin
+
+      - name: Enforce non-root user in Dockerfile
+        run: conftest test Dockerfile --policy policy/ --parser dockerfile
+
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -112,6 +122,7 @@ jobs:
           docker build -t "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" .
           docker tag "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA" "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_LATEST"
 
+          
       - name: Push Docker image to ACR
         run: |
           docker push "$ACR_LOGIN_SERVER/$ACR_REPOSITORY:$IMAGE_TAG_SHA"
