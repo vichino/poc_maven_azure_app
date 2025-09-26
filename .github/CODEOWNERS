@@ -1,0 +1,14 @@
+#### DevOps team revisa siempre CI/CD, Docker y políticas
+Dockerfile               @vichino
+miscelanea/*.yml         @vichino
+policy/*.rego            @vichino
+
+###### Equipo de Java revisa el código de aplicación
+src/main/java/**         @dev-team
+src/main/resources/**    @dev-team
+
+### Build de Maven lo revisan tanto developers como DevOps
+pom.xml                  @dev-team @vichino
+
+
+README.md                @vichino
