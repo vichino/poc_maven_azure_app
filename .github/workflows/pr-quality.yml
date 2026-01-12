@@ -1,4 +1,4 @@
-﻿name: PR Quality & Security
+name: PR Quality & Security
 
 on:
   pull_request:
@@ -37,7 +37,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload OWASP reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: dependency-check-reports
